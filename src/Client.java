@@ -1,6 +1,7 @@
 import java.io.PrintWriter;
 import java.math.BigInteger;
 import java.net.Socket;
+import java.security.SecureRandom;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.Scanner;
@@ -22,17 +23,20 @@ public class Client {
             System.out.print("Check Secret Key : ");
             while (scanner.hasNextLine()) {
                 String clientSecretKey = scanner.nextLine();
-                out.println(clientSecretKey);
+//                out.println(clientSecretKey);
 
                 Exchange exchange = new Exchange();
 
 
                 /** Step 1.a: Bob/Client sends g^{x3}, g^{x4}
                  **/
-                HashMap<String, Object> mapClient = exchange.roundOne(CLIENTID);
+                BigInteger x3 = new BigInteger(160, new SecureRandom());
+                x4 = new BigInteger(160, new SecureRandom());
+                HashMap<String, Object> mapClient = exchange.roundOne(x3, x4, CLIENTID);
                 /*Generate gx3, gx4, ZKP3, ZKP4 Bob/Client */
-                x4 = (BigInteger) mapClient.get("x4");
-                gx3 = (BigInteger) mapClient.get("gx3");
+                gx3 = new BigInteger((String) mapClient.get("gx3"));
+                System.out.println("x4 : " + x4);
+                System.out.println("gx3 : " + gx3);
 
                 /*Sending gx3, gx4, ZKP3, ZKP4 Bob/Client to Alice/Server*/
                 out.println(exchange.toJson(mapClient));
@@ -50,8 +54,8 @@ public class Client {
                 String message = in.nextLine();
                 // Mapping g^{x2}, KP{x1}, KP{x2} Alice/Server from response message
                 HashMap<String, Object> mapFromServer = exchange.fromJson(message);
-                gx1 = (BigInteger) mapFromServer.get("gx1");
-                gx2 = (BigInteger) mapFromServer.get("gx2");
+                gx1 = new BigInteger((String) mapFromServer.get("gx1"));
+                gx2 = new BigInteger((String) mapFromServer.get("gx2"));
                 sigX1 = exchange.toArray(mapFromServer.get("ZKP1"));
                 sigX2 = exchange.toArray(mapFromServer.get("ZKP2"));
 
@@ -67,7 +71,7 @@ public class Client {
                     System.out.println();
 
                     /* Step 2.a : Bob/Client sending B*/
-                    s2 = new BigInteger(clientSecretKey.getBytes());
+                    s2 = exchange.getSecretBigInt(clientSecretKey);
                     mapClient = exchange.roundTwo(gx3, gx1, gx2, x4, s2, CLIENTID);
 
                     /* Generate B, gB, KP{x4*s} Bob/Client
@@ -89,8 +93,8 @@ public class Client {
                     message = in.nextLine();
                     // Mapping A, gA, KP{x2*s} Alice/Server from response message
                     mapFromServer = exchange.fromJson(message);
-                    A = (BigInteger) mapFromServer.get("A");
-                    gA = (BigInteger) mapFromServer.get("gA");
+                    A = new BigInteger((String) mapFromServer.get("A"));
+                    gA = new BigInteger((String) mapFromServer.get("gA"));
                     sigX2s = exchange.toArray(mapFromServer.get("KP{x2*s}"));
 
                     // Bob/Client verifies Alice/Server ZKPs
@@ -112,10 +116,10 @@ public class Client {
                         System.out.println("\n***********************Final Steps**************************");
                         System.out.println("Alice/Server computes a session key \t K=" + message);
                         System.out.println("Bob/Client computes a session key \t\t K=" + key.toString() + ";" + timestamp);
-                        if (exchange.validateKey(message, key.toString())) {
-                            System.out.println("Secret key " + clientSecretKey + " is VALID");
+                        if (exchange.validateKey((message.split(";"))[0], key.toString())) {
+                            System.out.println("Secret key is VALID");
                         } else {
-                            System.out.println("Secret key " + clientSecretKey + " is NOT VALID");
+                            System.out.println("Secret key is NOT VALID");
                         }
                         System.out.println("************************************************************");
                     } else {

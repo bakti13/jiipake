@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -18,30 +19,23 @@ public class Exchange {
 
 
     /* Step 1.a: Alice sends g^{x1}, g^{x2}, and Bob sends g^{x3}, g^{x4} */
-    public HashMap<String, Object> roundOne(String id) {
+    public HashMap<String, Object> roundOne(BigInteger x1, BigInteger x2, String id) {
         HashMap<String, Object> result = new HashMap();
-        /* Generate x1 and x2 */
-        BigInteger x1 = new BigInteger(160, new SecureRandom());
-        BigInteger x2 = new BigInteger(160, new SecureRandom());
 
         BigInteger gx1 = G.modPow(x1, P);
         BigInteger gx2 = G.modPow(x2, P);
-        BigInteger[] sigX1 = generateZKP(P, Q, G, gx1, x1, id);
-        BigInteger[] sigX2 = generateZKP(P, Q, G, gx2, x2, id);
+        String[] sigX1 = generateZKP(P, Q, G, gx1, x1, id);
+        String[] sigX2 = generateZKP(P, Q, G, gx2, x2, id);
         if (id.equalsIgnoreCase(AliceID)) {
-            result.put("gx1", gx1);
-            result.put("gx2", gx2);
+            result.put("gx1", gx1.toString());
+            result.put("gx2", gx2.toString());
             result.put("ZKP1", sigX1);
             result.put("ZKP2", sigX2);
-//            result.put("x1", x1);
-            result.put("x2", x2);
         } else {
-            result.put("gx3", gx1);
-            result.put("gx4", gx2);
+            result.put("gx3", gx1.toString());
+            result.put("gx4", gx2.toString());
             result.put("ZKP3", sigX1);
             result.put("ZKP4", sigX2);
-//            result.put("x3", x1);
-            result.put("x4", x2);
         }
 
         return result;
@@ -61,14 +55,14 @@ public class Exchange {
         HashMap<String, Object> result = new HashMap();
         BigInteger gX = gx1.multiply(gx2).multiply(gx3).mod(P);
         BigInteger x = gX.modPow(x1.multiply(s1).mod(Q), P);
-        BigInteger[] sigXs = generateZKP(P, Q, gX, x, x1.multiply(s1).mod(Q), id);
+        String[] sigXs = generateZKP(P, Q, gX, x, x1.multiply(s1).mod(Q), id);
         if (id.equalsIgnoreCase(AliceID)) {
-            result.put("A", x);
-            result.put("gA", gX);
+            result.put("A", x.toString());
+            result.put("gA", gX.toString());
             result.put("KP{x2*s}", sigXs);
         } else {
-            result.put("B", x);
-            result.put("gB", gX);
+            result.put("B", x.toString());
+            result.put("gB", gX.toString());
             result.put("KP{x4*s}", sigXs);
         }
         return result;
@@ -117,7 +111,8 @@ public class Exchange {
 
     public BigInteger[] toArray(Object obj) {
         ArrayList<Object> item = (ArrayList<Object>) obj;
-        return item.toArray(new BigInteger[item.size()]);
+        return new BigInteger[]{new BigInteger((String) item.get(0)), new BigInteger((String) item.get(1))};
+
     }
 
     public boolean validateKey(String keyAlice, String keyBob) {
@@ -125,18 +120,17 @@ public class Exchange {
     }
 
 
-
-    public BigInteger[] generateZKP(BigInteger p, BigInteger q, BigInteger g,
-                                    BigInteger gx, BigInteger x, String signerID) {
-        BigInteger[] ZKP = new BigInteger[2];
+    public String[] generateZKP(BigInteger p, BigInteger q, BigInteger g,
+                                BigInteger gx, BigInteger x, String signerID) {
+        String[] ZKP = new String[2];
 
         /* Generate a random v, and compute g^v */
         BigInteger v = new BigInteger(160, new SecureRandom());
         BigInteger gv = g.modPow(v, p);
         BigInteger h = getSHA1(g, gv, gx, signerID); // h
 
-        ZKP[0] = gv;
-        ZKP[1] = v.subtract(x.multiply(h)).mod(q); // r = v-x*h
+        ZKP[0] = gv.toString();
+        ZKP[1] = (v.subtract(x.multiply(h)).mod(q)).toString(); // r = v-x*h
 
         return ZKP;
     }
@@ -158,28 +152,19 @@ public class Exchange {
 
     public BigInteger getSHA1(BigInteger g, BigInteger gr, BigInteger gx, String signerID) {
 
-        MessageDigest sha = null;
+        MessageDigest sha;
+        BigInteger tmp = getSHA1(g.add(gr).add(gx)), str;
 
         try {
             sha = MessageDigest.getInstance("SHA-1");
-
-            /* Note: you should ensure the items in H(...) have clear boundaries.
-             * It is simple if the other party knows sizes of g, gr, gx
-             * and signerID and hence the boundary is unambiguous. If not, you'd
-             * better prepend each item with its byte length, but I've
-             * omitted that here.
-             */
-
-            sha.update(g.toByteArray());
-            sha.update(gr.toByteArray());
-            sha.update(gx.toByteArray());
-            sha.update(signerID.getBytes());
+            sha.update(signerID.getBytes(StandardCharsets.UTF_8));
+            str = new BigInteger(1, sha.digest());
+            return tmp.add(str);
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        assert sha != null;
-        return new BigInteger(sha.digest());
+        return null;
     }
 
     public BigInteger getSHA1(BigInteger K) {
@@ -188,12 +173,29 @@ public class Exchange {
 
         try {
             sha = MessageDigest.getInstance("SHA-1");
-            sha.update(K.toByteArray());
+            sha.update(K.toString(10).getBytes());
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         assert sha != null;
-        return new BigInteger(1, sha.digest()); // 1 for positive int
+        return new BigInteger(1, sha.digest()); // 1 for positive int/ 1 for positive int
+    }
+
+    public void delay(int milisecond) {
+        try {
+            Thread.sleep(milisecond);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public BigInteger getSecretBigInt(String clientSecretKey) {
+        byte[] bytes = clientSecretKey.getBytes();
+        StringBuilder str = new StringBuilder();
+        for (byte b : bytes) {
+            str.append(b);
+        }
+        return new BigInteger(str.toString(), 10);
     }
 }
