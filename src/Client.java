@@ -62,6 +62,7 @@ public class Client {
                 // Bob/Client verifies Alice/Server ZKPs and also check g^{x2} != 1
                 boolean validZKPs = exchange.cekZKP(gx1, gx2, sigX1, sigX2, CLIENTID);
 
+                System.out.println("Timestamp = " + new Timestamp(System.currentTimeMillis()));
                 if (!validZKPs) {
                     System.out.println("g^{x2} shouldn't be 1 or invalid KP{x1,x2}");
                 } else {
@@ -98,6 +99,7 @@ public class Client {
                     sigX2s = exchange.toArray(mapFromServer.get("KP{x2*s}"));
 
                     // Bob/Client verifies Alice/Server ZKPs
+                    System.out.println("Timestamp = " + new Timestamp(System.currentTimeMillis()));
                     validZKPs = exchange.chekZKPs(gA, A, sigX2s, CLIENTID);
                     if (validZKPs) {
                         System.out.println("Bob/Client checks KP{x2*s}: OK");
